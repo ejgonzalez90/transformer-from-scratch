@@ -1,6 +1,6 @@
 # transformer-from-scratch
 
-Aprender Python y armar un Transformer desde cero, entendiendo cada matriz.
+¿Sabés qué? Los Transformers son un bardo loco. La única forma que tengo de entender este delirio es armar uno y verlo correr, matriz por matriz. Y ya que estoy, aprendo Python.
 
 Base teórica: mis notas de *The Illustrated Transformer* en [`notas/illustrated-transformer.md`](notas/illustrated-transformer.md).
 
