@@ -16,7 +16,7 @@ Repo de aprendizaje: Emiliano aprende Python y arma un Transformer desde cero. E
 - `README.md`: la ruta de módulos 0–6.
 - `PROGRESO.md`: qué módulo está en curso, qué quedó entendido y qué dudas quedan. Actualizalo al final de cada sesión.
 - `NN-tema/`: un módulo por carpeta, con ejercicios (`*.py`) y tests (`test_*.py`).
-- `notas/illustrated-transformer.md`: mis notas teóricas de *The Illustrated Transformer*.
+- `notas/`: mis notas teóricas. `illustrated-transformer.md` (*The Illustrated Transformer*, Jay Alammar) y `how-transformer-llms-work.md` (curso *How Transformer LLMs Work*, DeepLearning.AI).
 
 ## Técnico
 

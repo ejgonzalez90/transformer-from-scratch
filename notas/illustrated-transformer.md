@@ -2,6 +2,8 @@
 
 Fuente: [The Illustrated Transformer (Jay Alammar)](https://jalammar.github.io/illustrated-transformer/). Leído el 29/10/2026.
 
+Ver también: [notas del curso *How Transformer LLMs Work*](how-transformer-llms-work.md), que suma BERT, *grouped-query attention*, atención dispersa, Llama 3 y *Mixture of Experts*.
+
 ## 1. Arquitectura
 
 - **Encoder = codificador** y **decoder = decodificador**. Las traducciones son correctas.

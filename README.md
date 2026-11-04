@@ -2,7 +2,10 @@
 
 ¿Sabés qué? Los Transformers son un bardo loco. La única forma que tengo de entender este delirio es armar uno y verlo correr, matriz por matriz. Y ya que estoy, aprendo Python.
 
-Base teórica: mis notas de *The Illustrated Transformer* en [`notas/illustrated-transformer.md`](notas/illustrated-transformer.md).
+Base teórica, en mis notas:
+
+- [*The Illustrated Transformer*](https://jalammar.github.io/illustrated-transformer/) (Jay Alammar): [`notas/illustrated-transformer.md`](notas/illustrated-transformer.md).
+- [*How Transformer LLMs Work*](https://learn.deeplearning.ai/courses/how-transformer-llms-work) (DeepLearning.AI): [`notas/how-transformer-llms-work.md`](notas/how-transformer-llms-work.md).
 
 ## Ruta
 
