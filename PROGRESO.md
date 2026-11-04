@@ -2,8 +2,8 @@
 
 ## Estado
 
-- Módulo en curso: **3. Bloque del codificador**. El módulo 2 está cerrado: `softmax` y `atencion` en `02-numpy/`, 14 tests.
-- Última sesión: 03/11/2026
+- Módulo en curso: **3. Bloque del codificador**. Listo: máscara causal (`03-codificador/mascara.py`, 6 tests). Sigue: multi-head.
+- Última sesión: 04/11/2026
 
 ## Ya entendido (de la lectura)
 
@@ -29,11 +29,16 @@
 - Self-attention: `softmax(Q·Kᵀ / √d_k) · V`, con `d_k = Q.shape[-1]` (el último eje, como `axis=-1`; con un batch, `shape[1]` serían los tokens). Q (n×d_k), K (m×d_k), V (m×d_v) → Z (n×d_v).
 - Cada fila de pesos suma 1, así que `z_i` es un promedio ponderado de los `v`. Si todos los `v` son iguales, `z_i = (Σ pesos)·v = v`.
 - `X (m×512) · WQ (512×64) = Q (m×64)`: Q tiene una fila por token. Las cabezas se reparten **columnas** (dimensiones), no tokens: 8 × 64 = 512, más o menos el mismo costo que una cabeza de 512.
+- Máscara causal: se suma `-∞` arriba de la diagonal **antes** del softmax. `e^-∞ = 0.0` exacto, así que el peso del futuro es exactamente 0. La diagonal vale 0, así que cada token se ve por lo menos a sí mismo y ninguna fila queda toda en `-∞` (eso daría `-∞ - (-∞) = nan`).
+- Indeterminaciones en float (IEEE 754, igual en C# y JS): `0·∞`, `∞−∞`, `∞/∞` y `0/0` dan `nan`. Por eso la máscara se arma con `np.where`, y no multiplicando por `-∞`.
+- En NumPy, `*` y `/` son siempre elemento a elemento (con broadcasting); el producto matricial es `@`. `M / √d_k` divide por un escalar. La "división" de matrices del álgebra sería `np.linalg.solve` / `inv`.
+- `Q·Kᵀ` se calcula completo aunque la máscara tire casi la mitad: con 512 tokens, completo tarda 2,9 ms y solo el triángulo, fila por fila, 20,9 ms. FlashAttention saltea bloques enteros, y en la inferencia con KV cache se calcula una sola fila nueva.
+- La matriz de pesos `softmax(Q·Kᵀ/√d_k)` (n×n) es la que dice cuánto mira cada token (fila) a cada otro (columna). `Z = pesos · V` ya no son probabilidades.
 - En `(m×n)·(n×q)` con `bᵀ` de `(q×n)`, `dot` siempre recibe dos vectores de largo `n`, así que `strict=True` solo verifica `n`. `m` y `q` son la cantidad de vueltas de cada `for`, o sea, la shape del resultado `(m×q)`; nunca se comparan entre sí.
 
 ## Dudas abiertas
 
--
+- Del curso *How Transformer LLMs Work* (marcadas con `*` en las notas): peak learning rate, SwiGLU y RoPE (*rotary embeddings*).
 
 ## Registro de sesiones
 
@@ -42,3 +47,4 @@
 | 30/10/2026 | 0 y 1 | Armé el `.venv` e instalé pytest; `00-entorno` pasa (2 tests). Vimos módulos, imports y cómo pytest descubre tests. Implementé `dot`, `columna`, `transponer` y `matmul` en `01-python/matmul.py`: pasan los 15 tests. | Módulo 1 cerrado. Próximo: módulo 2 (agregar NumPy a `requirements.txt`, `softmax` estable). |
 | 02/11/2026 | 2 | Instalé NumPy 2.5.4. `A @ A` de 200×200: 0,5 ms contra 1,13 s con listas (~2.300 veces más rápido), y da el mismo resultado. Vimos `shape`, operaciones elemento a elemento, `axis`, `keepdims` y broadcasting. | — |
 | 03/11/2026 | 2 | Saqué las rutas locales de la historia del repo y copié las notas a `notas/`. Implementé `softmax` estable (8 tests, sin warnings) y `puntajes` + `atencion`, que reproducen `z1 = [0,27 1,46 1,46 0,54]` de la sección 6. Módulo 2 cerrado. | Módulo 3: máscara, multi-head (y `K.T` con batch). |
+| 04/11/2026 | 3 | Terminé el curso *How Transformer LLMs Work* (DeepLearning.AI): notas reescritas en `notas/how-transformer-llms-work.md`. `pyproject.toml` con `pythonpath` para importar `02-numpy`. Implementé `mascara_causal` y `atencion_enmascarada`: pasan los 6 tests. | Pregunta pendiente: ¿cada token tiene su propio `WQ`? Repasar cabezas. Después, multi-head. |

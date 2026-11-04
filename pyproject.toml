@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+# Carpetas que pytest agrega a sys.path, para que un módulo pueda importar
+# lo que escribimos en módulos anteriores (por ejemplo, softmax de 02-numpy).
+pythonpath = ["02-numpy"]
