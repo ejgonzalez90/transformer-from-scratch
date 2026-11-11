@@ -2,8 +2,8 @@
 
 ## Estado
 
-- Módulo en curso: **3. Bloque del codificador**. Listo: máscara causal (`03-codificador/mascara.py`, 6 tests). Sigue: multi-head.
-- Última sesión: 04/11/2026
+- Módulo en curso: **3. Bloque del codificador**. Listo: máscara causal (`03-codificador/mascara.py`, 6 tests) y multi-head (`03-codificador/multihead.py`, 9 tests). Sigue: positional encoding, layer norm y feed-forward.
+- Última sesión: 11/11/2026
 
 ## Ya entendido (de la lectura)
 
@@ -34,6 +34,11 @@
 - En NumPy, `*` y `/` son siempre elemento a elemento (con broadcasting); el producto matricial es `@`. `M / √d_k` divide por un escalar. La "división" de matrices del álgebra sería `np.linalg.solve` / `inv`.
 - `Q·Kᵀ` se calcula completo aunque la máscara tire casi la mitad: con 512 tokens, completo tarda 2,9 ms y solo el triángulo, fila por fila, 20,9 ms. FlashAttention saltea bloques enteros, y en la inferencia con KV cache se calcula una sola fila nueva.
 - La matriz de pesos `softmax(Q·Kᵀ/√d_k)` (n×n) es la que dice cuánto mira cada token (fila) a cada otro (columna). `Z = pesos · V` ya no son probabilidades.
+- `WQ`, `WK` y `WV` son las mismas para todos los tokens. Cada columna de `WQ` es una "receta" (producto punto con el embedding); proyectar es describir el token con otras preguntas. `q` no nombra tokens: dice qué *tipo* de información busca, y la relación aparece recién en `q·k`. Ejemplo de *Thinking Machines* en `notas/illustrated-transformer.md` §6.
+- Multi-head: por más dimensiones que tenga `q`, `q·k` es **un** número y hay **un** softmax por token. Una cabeza de 4 con `q = [1 0 | 0 1]` reparte `[0,5 0,5]` (mezcla); dos cabezas de 2 dan `[0,67 0,33]` y `[0,33 0,67]`: cada una se decide por algo distinto. En la práctica, `WQ (512×512)` se parte en 8 bloques de 64 columnas. Da lo mismo proyectar y después cortar `Q` que usar cada `WQ_i (512×64)`: la columna j de `Q` depende solo de la columna j de `WQ` (con sus 512 filas). Cortar por filas cambiaría la cuenta y dejaría de leer el token entero. Se parten `Q`, `K` y `V`, no `X`.
+- Multi-head en código: `Q = dividir_cabezas(X @ WQ, h)` → `(h, n, d_head)` con `reshape(n, h, d_head)` + `swapaxes(0, 1)`; `unir_cabezas` es la inversa en orden inverso (swap y después reshape a `(n, h·d_head)`). X **nunca** se parte: cada cabeza ve el token entero; lo que se reparte son las columnas de la proyección (de `Q` en el código, de `WQ_i` en el paper: da lo mismo).
+- Con 3D, `@` multiplica cabeza por cabeza (como un batch). `.transpose()` sin argumentos invierte **todos** los ejes (`(2,3,4)` → `(4,3,2)`); para `Kᵀ` por cabeza va `np.swapaxes(K, -1, -2)`, que sirve en 2D y 3D. Ojo: `swapaxes` recibe números de eje (`-1`), no tamaños (`K.shape[-1]`).
+- Sin máscara alcanza sumar el escalar `0` (broadcasting): `0 if mascara is None else mascara`. Python no tiene `??`; `x is not None` es la forma idiomática.
 - En `(m×n)·(n×q)` con `bᵀ` de `(q×n)`, `dot` siempre recibe dos vectores de largo `n`, así que `strict=True` solo verifica `n`. `m` y `q` son la cantidad de vueltas de cada `for`, o sea, la shape del resultado `(m×q)`; nunca se comparan entre sí.
 
 ## Dudas abiertas
@@ -48,3 +53,4 @@
 | 02/11/2026 | 2 | Instalé NumPy 2.5.4. `A @ A` de 200×200: 0,5 ms contra 1,13 s con listas (~2.300 veces más rápido), y da el mismo resultado. Vimos `shape`, operaciones elemento a elemento, `axis`, `keepdims` y broadcasting. | — |
 | 03/11/2026 | 2 | Saqué las rutas locales de la historia del repo y copié las notas a `notas/`. Implementé `softmax` estable (8 tests, sin warnings) y `puntajes` + `atencion`, que reproducen `z1 = [0,27 1,46 1,46 0,54]` de la sección 6. Módulo 2 cerrado. | Módulo 3: máscara, multi-head (y `K.T` con batch). |
 | 04/11/2026 | 3 | Terminé el curso *How Transformer LLMs Work* (DeepLearning.AI): notas reescritas en `notas/how-transformer-llms-work.md`. `pyproject.toml` con `pythonpath` para importar `02-numpy`. Implementé `mascara_causal` y `atencion_enmascarada`: pasan los 6 tests. | Pregunta pendiente: ¿cada token tiene su propio `WQ`? Repasar cabezas. Después, multi-head. |
+| 10–11/11/2026 | 3 | Repasé `WQ` (compartida por todos los tokens; cada columna es una "receta") y por qué hay varias cabezas (ejemplos en las notas §6 y §7). `puntajes` ahora anda con 3D (`swapaxes(K, -1, -2)`). Implementé `dividir_cabezas`, `unir_cabezas` y `multihead`: 44 tests en verde. | Módulo 3: positional encoding, layer norm (pre-norm) y feed-forward. |

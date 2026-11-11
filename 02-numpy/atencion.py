@@ -17,7 +17,7 @@ def puntajes(Q: np.ndarray, K: np.ndarray) -> np.ndarray:
 
     (n×d_k)·(d_k×m) = (n×m). La fila i son los puntajes del token i.
     """
-    return (Q @ K.T) / np.sqrt(Q.shape[-1])
+    return (Q @ np.swapaxes(K, -1, -2)) / np.sqrt(Q.shape[-1])
 
 
 def atencion(Q: np.ndarray, K: np.ndarray, V: np.ndarray) -> np.ndarray:

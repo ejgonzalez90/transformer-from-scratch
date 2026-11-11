@@ -104,6 +104,60 @@ x1 = [1 0 2 3]      WQ = | 1 0 1 |
 
 En el paper: `x` es `1×512`, `WQ` es `512×64` y `q` es `1×64`.
 
+**Todos los tokens usan las mismas `WQ`, `WK` y `WV`.** Lo que cambia de un token a otro es su embedding `x`, y por eso salen `q`, `k` y `v` distintos. En código es una sola multiplicación: `Q = X·WQ`.
+
+### ¿Qué significa "proyectar"?
+
+Cada número de `q1` es el producto punto de `x1` con **una columna** de `WQ`:
+
+```
+x1 = [1 0 2 3]
+
+columna 0 de WQ = [1 0 1 0]  →  1·1 + 0·0 + 2·1 + 3·0 = 3    "sumá las dimensiones 0 y 2"
+columna 1 de WQ = [0 2 1 1]  →  1·0 + 0·2 + 2·1 + 3·1 = 5    "el doble de la 1, más la 2 y la 3"
+columna 2 de WQ = [1 1 0 2]  →  1·1 + 0·1 + 2·0 + 3·2 = 7    "la 0, la 1 y el doble de la 3"
+```
+
+Cada columna es una **receta**: indica qué partes del embedding mirar y cuánto pesa cada una. El producto punto mide cuánto se parece el token a esa receta. Proyectar es describir el mismo token con otras "preguntas", que elige el entrenamiento, y quedarse con menos dimensiones: de 4 a 3 acá, de 512 a 64 en el paper.
+
+### Un mismo token, tres roles: *Thinking Machines*
+
+Ejemplo de juguete, con dimensiones que significan algo. En un modelo real no se pueden leer así, porque el entrenamiento las mezcla.
+
+```
+dimensiones:      [sustantivo, verbo, tecnología, mental]
+x_Thinking   =    [    0,        1,       0,         1  ]
+x_Machines   =    [    1,        0,       1,         0  ]
+
+WQ "¿qué busco?"              col 0 = busco un sustantivo (se activa si soy verbo)
+                              col 1 = busco un verbo      (se activa si soy sustantivo)
+WK "¿qué ofrezco?"            col 0 = soy sustantivo      col 1 = soy verbo
+WV "¿qué información paso?"   col 0 = tecnología          col 1 = mental
+
+WQ = | 0 1 |    WK = | 1 0 |    WV = | 0 0 |
+     | 1 0 |         | 0 1 |         | 0 0 |
+     | 0 0 |         | 0 0 |         | 1 0 |
+     | 0 0 |         | 0 0 |         | 0 1 |
+```
+
+Resultado, con `X (2×4) · W (4×2) = (2×2)`:
+
+```
+                 q (busco)    k (ofrezco)    v (paso)
+Thinking         [1 0]        [0 1]          [0 1]   ← busca un sustantivo, es verbo, aporta "mental"
+Machines         [0 1]        [1 0]          [1 0]   ← busca un verbo, es sustantivo, aporta "tecnología"
+
+Q·Kᵀ =               Thinking   Machines
+        Thinking  [     0          1    ]   ← el verbo encuentra a su sustantivo
+        Machines  [     1          0    ]   ← y el sustantivo, a su verbo
+```
+
+- **El mismo `x` da tres vectores distintos**, porque cada `W` lo proyecta para un rol: buscar, ofrecer, pasar información.
+- **`WQ` y `WK` ignoran "tecnología" y "mental"**: para decidir *a quién mirar* solo importa lo gramatical. **`WV` usa justo esas dimensiones**, porque es *lo que se transmite*. Después de la atención, el `z` de "Thinking" incluye "tecnología", que viene del `v` de "Machines".
+- **`q·k` es grande cuando lo que uno busca coincide con lo que el otro ofrece.** Por eso `WQ` y `WK` son matrices distintas: si fueran la misma, cada token tendería a mirarse a sí mismo.
+- **`q` no nombra tokens: describe qué *tipo* de información busca.** `WQ` no sabe qué otros tokens hay en la oración. La relación aparece recién al cruzar con las `k` en `Q·Kᵀ`.
+- Una proyección se queda con **un** tipo de pregunta, en este caso la gramatical. Esa es la motivación de multi-head (sección 7): cada cabeza tiene sus propias `WQ_i`, `WK_i` y `WV_i`, y puede preguntar otra cosa.
+
 ### Ejemplo con 2 tokens (`d_k = 4`, entonces `√d_k = 2`)
 
 ```
@@ -171,6 +225,66 @@ Ejemplo: el token "it" con 2 cabezas sobre 3 tokens:
 Cabeza 1:     [  0,85    0,05    0,10 ]   ← resuelve la referencia
 Cabeza 2:     [  0,10    0,05    0,85 ]   ← mira el estado
 Una cabeza:   [  0,50    0,05    0,45 ]   ← un promedio que mezcla las dos cosas
+```
+
+### Por qué: `q·k` es un solo número
+
+Por más dimensiones que tengan `q` y `k`, el producto punto las **suma todas en un número**:
+
+```
+q (1×512) · kᵀ (512×1) = (1×1)
+q·k = q[0]·k[0] + q[1]·k[1] + ... + q[511]·k[511]
+```
+
+Con `n` tokens, `Q·Kᵀ` es `(n×n)`: un número por par de tokens y **un** softmax por fila. Si se agregan dimensiones, cada token tiene más "categorías", pero sigue repartiendo su atención **una sola vez**.
+
+### Ejemplo a mano: 1 cabeza de 4 contra 2 cabezas de 2
+
+`d_model = 4`. Un token pregunta "algo de gramática" en la primera mitad de su `q` y "algo de significado" en la segunda mitad. Hay dos candidatos:
+
+```
+q   = [1 0 | 0 1]
+k_A = [1 0 | 0 0]   ← coincide en gramática
+k_B = [0 0 | 0 1]   ← coincide en significado
+```
+
+**Una cabeza de 4** (`d_k = 4`, `√4 = 2`):
+
+```
+q·k_A = 1    q·k_B = 1    → [1, 1] / 2 = [0,5  0,5]   → softmax → [0,5  0,5]
+```
+
+**Dos cabezas de 2** (`d_k = 2`, `√2 ≈ 0,707`): cada una usa su mitad.
+
+```
+Cabeza 1:  [1 0]·[1 0] = 1    [1 0]·[0 0] = 0    → [0,707  0]  → softmax → [0,67  0,33]
+Cabeza 2:  [0 1]·[0 0] = 0    [0 1]·[0 1] = 1    → [0  0,707]  → softmax → [0,33  0,67]
+```
+
+(`e^0,707 / (1 + e^0,707) = 2,03 / 3,03 ≈ 0,67`)
+
+```
+                          mira a A    mira a B
+Una cabeza de 4:        [   0,5         0,5   ]   ← empate: se pierde por qué importaba cada uno
+Cabeza 1 (gramática):   [   0,67        0,33  ]   ← prefiere a A
+Cabeza 2 (significado): [   0,33        0,67  ]   ← prefiere a B
+```
+
+Con una cabeza, las dos preguntas se **suman en el mismo número**: A gana en gramática, B gana en significado, y empatan. Con dos cabezas, cada pregunta tiene **su propio softmax**, y el token puede ir fuerte hacia A y hacia B **al mismo tiempo**.
+
+### Cómo decirlo
+
+> Cada cabeza proyecta todos los tokens a su propio conjunto de "preguntas" aprendidas, y con ese criterio calcula **su propia distribución** de a qué otros tokens mirar.
+
+Dos precisiones:
+- **Cada cabeza lee el token entero.** `WQ_i` es `(512×64)`: cada una de sus 64 columnas es una receta sobre las **512** dimensiones de `x`. En el ejemplo corté el `q` por la mitad, pero lo que se corta en bloques es el `Q` ya proyectado, no el embedding. Las "preguntas" de cada cabeza no se definen de antemano: las aprende el entrenamiento, y en general no se pueden nombrar.
+- **La relación es siempre entre tokens.** El conjunto de preguntas de la cabeza es el **criterio** con el que se mide la relación, no aquello con lo que el token se relaciona.
+
+En la práctica se arma **una** `WQ (512×512)` y se parte en 8 bloques de 64 columnas, uno por cabeza:
+
+```
+WQ (512×512) = [ WQ_1 | WQ_2 | ... | WQ_8 ]     cada WQ_i es (512×64)
+X (n×512) · WQ = Q (n×512)  →  se corta en 8 pedazos Q_i (n×64)
 ```
 
 ### ¿Mejora el rendimiento?
